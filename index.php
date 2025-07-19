@@ -2,14 +2,31 @@
 date_default_timezone_set('Asia/Shanghai');
 session_start();
 
+// API配置常量
+define('API_VERSION', '1.0.0');
+define('DEFAULT_PER_PAGE', 20);
+define('MAX_PER_PAGE', 100);
+
 $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
 $show_docs = isset($_GET['docs']) && $_GET['docs'] === 'true';
 $show_all = isset($_GET['all']) && $_GET['all'] === 'true';
 
+// 分页参数
+$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
+$per_page = isset($_GET['per_page']) ? min(MAX_PER_PAGE, max(1, intval($_GET['per_page']))) : DEFAULT_PER_PAGE;
+
 // 加载配置文件
 $config_file = __DIR__ . '/config.php';
 if (!file_exists($config_file)) {
-    die("配置文件不存在，请创建 config.php 文件");
+    die(json_encode([
+        'meta' => [
+            'version' => API_VERSION,
+            'timestamp' => time(),
+            'status' => 'error'
+        ],
+        'data' => null,
+        'message' => '找不到配置文件',
+    ]));
 }
 require_once $config_file;
 
@@ -18,17 +35,12 @@ function renderTemplate($template, $data = [])
 {
     $templatePath = __DIR__ . '/templates/' . $template;
     if (!file_exists($templatePath)) {
-        throw new Exception("Template file not found: " . $template);
+        throw new Exception("Template file not found: " . $template, 500);
     }
-    // 提取变量到当前符号表
     extract($data);
-    // 开始输出缓冲
     ob_start();
-    // 包含模板文件
     include $templatePath;
-    // 获取缓冲内容并清除缓冲区
     $content = ob_get_clean();
-    // 替换剩余的变量（如果有）
     foreach ($data as $key => $value) {
         $content = str_replace('{' . $key . '}', $value, $content);
     }
@@ -40,6 +52,7 @@ interface StorageStrategy
 {
     public function getQuotes();
     public function getLastUpdateTime();
+    public function getTotalCount();
 }
 
 // JSON 存储策略
@@ -81,6 +94,12 @@ class JsonStorage implements StorageStrategy
         }
         return $lastUpdate;
     }
+
+    public function getTotalCount()
+    {
+        $quotes = $this->getQuotes();
+        return count($quotes);
+    }
 }
 
 // 根据配置创建存储策略实例
@@ -90,10 +109,37 @@ function createStorageStrategy($config)
         case 'json':
             return new JsonStorage($config['storage']['config']);
         default:
-            throw new Exception("不支持的存储类型: " . $config['storage']['type']);
+            throw new Exception("Unsupported storage type: " . $config['storage']['type'], 400);
     }
 }
 
+// 标准API响应函数
+function apiResponse($data = null, $message = '', $code = 200, $errors = [])
+{
+    $status = $code >= 200 && $code < 300 ? 'success' : 'error';
+
+    $response = [
+        'meta' => [
+            'version' => API_VERSION,
+            'timestamp' => time(),
+            'status' => $status,
+            'code' => $code
+        ],
+        'data' => $data,
+        'message' => $message
+    ];
+
+    if (!empty($errors)) {
+        $response['errors'] = $errors;
+    }
+
+    header('Content-Type: application/json; charset=utf-8');
+    http_response_code($code);
+    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+    exit;
+}
+
+// 主逻辑
 try {
     // 创建存储策略实例
     $storage = createStorageStrategy($config);
@@ -111,18 +157,24 @@ try {
 
     if ($show_all) {
         if (empty($visible_quotes)) {
-            throw new Exception("没有可用的精选内容");
+            throw new Exception("No quotes available", 404);
         }
 
-        // 处理所有数据
-        $all_data = [];
-        foreach ($visible_quotes as $quote) {
+        // 分页处理
+        $total = count($visible_quotes);
+        $total_pages = ceil($total / $per_page);
+        $offset = ($page - 1) * $per_page;
+        $paged_quotes = array_slice($visible_quotes, $offset, $per_page);
+
+        // 处理数据
+        $quotes_data = [];
+        foreach ($paged_quotes as $quote) {
             $content = $quote['content'];
             if ($quote["content_type"] === 'image') {
                 $content = $current_domain . '/data/image/' . $content;
             }
 
-            $all_data[] = [
+            $quotes_data[] = [
                 'id' => $quote['id'],
                 'content' => $content,
                 'description' => $quote['quote_source'],
@@ -137,9 +189,9 @@ try {
             header('Content-Type: text/html; charset=utf-8');
 
             $content_html = '';
-            foreach ($all_data as $item) {
+            foreach ($quotes_data as $item) {
                 $display_content = $item['content_type'] === 'image'
-                    ? "<img src='{$item['content']}' alt='精选图片' style='max-width: 100%;'>"
+                    ? "<img src='{$item['content']}' alt='Quote image' style='max-width: 100%;'>"
                     : "<p>" . nl2br(htmlspecialchars($item['content'])) . "</p>";
 
                 $content_html .= renderTemplate('quote_item.html', [
@@ -150,23 +202,37 @@ try {
             }
 
             $content = renderTemplate('all_quotes.html', [
-                'content_html' => $content_html
+                'content_html' => $content_html,
+                'current_page' => $page,
+                'total_pages' => $total_pages,
+                'per_page' => $per_page
             ]);
 
             echo renderTemplate('base.html', [
-                'title' => '精选内容',
+                'title' => 'All Quotes',
                 'content' => $content,
                 'last_update_time' => date('Y-m-d H:i:s', (int)$lastUpdate)
             ]);
         } else {
             // JSON响应格式返回所有数据
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($all_data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            $pagination = [
+                'total' => $total,
+                'per_page' => $per_page,
+                'current_page' => $page,
+                'total_pages' => $total_pages,
+                'has_more' => $page < $total_pages
+            ];
+
+            apiResponse([
+                'quotes' => $quotes_data,
+                'pagination' => $pagination,
+                'last_update' => $lastUpdate
+            ], '成功检索');
         }
     } else {
         // 随机一条非隐藏内容
         if (empty($visible_quotes)) {
-            throw new Exception("没有可用的精选内容");
+            throw new Exception("No quotes available", 404);
         }
 
         $quote = $visible_quotes[array_rand($visible_quotes)];
@@ -184,6 +250,7 @@ try {
             'description' => $quote['quote_source'],
             'content_type' => $quote['content_type'],
             'add_time' => (int)$quote['add_time'],
+            'user_name' => $quote['user_name']
         ];
 
         if ($show_docs) {
@@ -191,16 +258,10 @@ try {
             header('Content-Type: text/html; charset=utf-8');
 
             $display_content = $quote['content_type'] === 'image'
-                ? "<img src='{$quote['content']}' alt='精选图片' style='max-width: 100%;'>"
+                ? "<img src='{$quote['content']}' alt='Quote image' style='max-width: 100%;'>"
                 : "<p>" . nl2br(htmlspecialchars($quote['content'])) . "</p>";
 
-            $api_example = json_encode([
-                'id' => $quote['id'],
-                'content' => $quote['content'],
-                'user_qq' => $quote['user_name'],
-                'content_type' => $quote['content_type'],
-                'add_time' => $quote['add_time']
-            ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
+            $api_example = json_encode($response_data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
             $content = renderTemplate('single_quote.html', [
                 'display_content' => $display_content,
@@ -210,29 +271,28 @@ try {
             ]);
 
             echo renderTemplate('base.html', [
-                'title' => '随机精选内容',
+                'title' => 'Random Quote',
                 'content' => $content,
                 'last_update_time' => date('Y-m-d H:i:s', (int)$lastUpdate)
             ]);
         } else {
             // JSON响应格式
-            header('Content-Type: application/json; charset=utf-8');
-            echo json_encode($response_data, JSON_UNESCAPED_UNICODE);
+            apiResponse($response_data, '成功检索随机引用');
         }
     }
 } catch (Exception $e) {
+    $code = method_exists($e, 'getCode') ? $e->getCode() : 500;
+    $code = $code >= 100 && $code < 600 ? $code : 500;
+
     if ($show_docs || $show_all) {
         header('Content-Type: text/html; charset=utf-8');
+        http_response_code($code);
         echo renderTemplate('base.html', [
-            'title' => '错误',
-            'content' => "<div class='error'>发生错误: " . htmlspecialchars($e->getMessage()) . "</div>",
+            'title' => 'Error',
+            'content' => "<div class='error'>Error: " . htmlspecialchars($e->getMessage()) . "</div>",
             'last_update_time' => date('Y-m-d H:i:s', time())
         ]);
     } else {
-        header('Content-Type: application/json; charset=utf-8');
-        echo json_encode([
-            'error' => true,
-            'message' => $e->getMessage()
-        ], JSON_UNESCAPED_UNICODE);
+        apiResponse(null, $e->getMessage(), $code, ['details' => $e->getMessage()]);
     }
 }
