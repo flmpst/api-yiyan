@@ -1,0 +1,15 @@
+{
+    "version": 2,
+    "name": "huafeng-yiyan-api",
+    "functions": {
+        "api/index.php": {
+            "runtime": "vercel-php@0.4.3"
+        }
+    },
+    "routes": [
+        {
+            "src": "/(.*)",
+            "dest": "/api/index.php"
+        }
+    ]
+}
