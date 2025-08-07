@@ -1,6 +1,6 @@
 <h1>添加新内容</h1>
 <hr>
-<form method="post" action="/admin/save">
+<form method="post" action="/admin/save" class="form-container">
     <div>
         <label for="content">内容:</label>
         <textarea id="content" name="content" rows="5" required></textarea>

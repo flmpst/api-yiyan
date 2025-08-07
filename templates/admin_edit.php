@@ -1,6 +1,6 @@
 <h1>编辑内容</h1>
 <hr>
-<form method="post" action="/admin/update/<?= $quote['id'] ?>">
+<form method="post" action="/admin/update/<?= $quote['id'] ?>" class="form-container">
     <div>
         <label for="content">内容:</label>
         <textarea id="content" name="content" rows="5" required><?= htmlspecialchars($quote['content']) ?></textarea>
