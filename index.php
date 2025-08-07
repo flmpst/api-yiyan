@@ -1,158 +1,117 @@
 <?php
-date_default_timezone_set('Asia/Shanghai');
-session_start();
+require_once __DIR__ . '/init.php';
 
-// API配置常量
-define('API_VERSION', '1.0.0');
-define('DEFAULT_PER_PAGE', 20);
-define('MAX_PER_PAGE', 100);
-
-$current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://" . $_SERVER['HTTP_HOST'];
-$show_docs = isset($_GET['docs']) && $_GET['docs'] === 'true';
-$show_all = isset($_GET['all']) && $_GET['all'] === 'true';
-
-// 分页参数
-$page = isset($_GET['page']) ? max(1, intval($_GET['page'])) : 1;
-$per_page = isset($_GET['per_page']) ? min(MAX_PER_PAGE, max(1, intval($_GET['per_page']))) : DEFAULT_PER_PAGE;
-
-// 加载配置文件
-$config_file = __DIR__ . '/config.php';
-if (!file_exists($config_file)) {
-    die(json_encode([
-        'meta' => [
-            'version' => API_VERSION,
-            'timestamp' => time(),
-            'status' => 'error'
-        ],
-        'data' => null,
-        'message' => '找不到配置文件',
-    ]));
-}
-require_once $config_file;
-
-// 模板渲染函数
-function renderTemplate($template, $data = [])
-{
-    $templatePath = __DIR__ . '/templates/' . $template;
-    if (!file_exists($templatePath)) {
-        throw new Exception("Template file not found: " . $template, 500);
-    }
-    extract($data);
-    ob_start();
-    include $templatePath;
-    $content = ob_get_clean();
-    foreach ($data as $key => $value) {
-        $content = str_replace('{' . $key . '}', $value, $content);
-    }
-    return $content;
-}
-
-// 存储策略接口
-interface StorageStrategy
-{
-    public function getQuotes();
-    public function getLastUpdateTime();
-    public function getTotalCount();
-}
-
-// JSON 存储策略
-class JsonStorage implements StorageStrategy
-{
-    private $data_file;
-
-    public function __construct($config)
-    {
-        $this->data_file = $config['path'] ?? __DIR__ . '/data/quotes.json';
-        $this->initDataFile();
-    }
-
-    private function initDataFile()
-    {
-        if (!file_exists($this->data_file)) {
-            $dir = dirname($this->data_file);
-            if (!is_dir($dir)) {
-                mkdir($dir, 0755, true);
-            }
-            file_put_contents($this->data_file, json_encode(['quotes' => []]));
-        }
-    }
-
-    public function getQuotes()
-    {
-        $data = json_decode(file_get_contents($this->data_file), true);
-        return $data ? $data['quotes'] : [];
-    }
-
-    public function getLastUpdateTime()
-    {
-        $quotes = $this->getQuotes();
-        $lastUpdate = 0;
-        foreach ($quotes as $quote) {
-            if ($quote['add_time'] > $lastUpdate) {
-                $lastUpdate = $quote['add_time'];
-            }
-        }
-        return $lastUpdate;
-    }
-
-    public function getTotalCount()
-    {
-        $quotes = $this->getQuotes();
-        return count($quotes);
-    }
-}
-
-// 根据配置创建存储策略实例
-function createStorageStrategy($config)
-{
-    switch ($config['storage']['type']) {
-        case 'json':
-            return new JsonStorage($config['storage']['config']);
-        default:
-            throw new Exception("Unsupported storage type: " . $config['storage']['type'], 400);
-    }
-}
-
-// 标准API响应函数
-function apiResponse($data = null, $message = '', $code = 200, $errors = [])
-{
-    $status = $code >= 200 && $code < 300 ? 'success' : 'error';
-
-    $response = [
-        'meta' => [
-            'version' => API_VERSION,
-            'timestamp' => time(),
-            'status' => $status,
-            'code' => $code
-        ],
-        'data' => $data,
-        'message' => $message
-    ];
-
-    if (!empty($errors)) {
-        $response['errors'] = $errors;
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code($code);
-    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    exit;
-}
-
-// 主逻辑
 try {
-    // 创建存储策略实例
     $storage = createStorageStrategy($config);
+
+    // 处理API数据提交
+    if ($_SERVER['REQUEST_METHOD'] === 'POST' && !$show_docs) {
+        validateApiCredentials();
+
+        // 如果是文件上传，使用 $_POST 和 $_FILES
+        if (!empty($_FILES['image_file'])) {
+            $input = $_POST;
+            $input['content_type'] = 'image';
+        } else {
+            // 否则处理 JSON 输入
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (json_last_error() !== JSON_ERROR_NONE) {
+                throw new Exception('Invalid JSON input', 400);
+            }
+        }
+
+        // 验证必填字段
+        $required = ['content', 'user_name'];
+        foreach ($required as $field) {
+            if (empty($input[$field])) {
+                throw new Exception("Missing required field: $field", 400);
+            }
+        }
+
+        // 准备数据 - API提交的内容默认隐藏
+        $data = [
+            'content' => $input['content'],
+            'content_type' => $input['content_type'] ?? 'text',
+            'user_name' => $input['user_name'],
+            'quote_source' => $input['quote_source'] ?? 'API提交',
+            'is_hidden' => 1, // API提交的内容默认隐藏
+            'add_time' => time()
+        ];
+
+        // 处理图片内容
+        if ($data['content_type'] === 'image') {
+            if (!isset($_FILES['image_file'])) {
+                throw new Exception('Missing image file for image type', 400);
+            }
+
+            $file = $_FILES['image_file'];
+
+            // 检查上传错误
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                throw new Exception('File upload error: ' . $file['error'], 400);
+            }
+
+            // 确保图片目录存在
+            if (!is_dir($config['image_storage']['path'])) {
+                mkdir($config['image_storage']['path'], 0755, true);
+            }
+
+            // 获取图片信息
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($file['tmp_name']);
+
+            // 检查图片类型
+            if (!isset($config['image_storage']['allowed_types'][$mime])) {
+                throw new Exception('Unsupported image type: ' . $mime, 400);
+            }
+
+            // 检查图片大小
+            if ($file['size'] > $config['image_storage']['max_size']) {
+                throw new Exception('Image size exceeds maximum allowed size', 400);
+            }
+
+            // 生成文件名
+            $imageData = file_get_contents($file['tmp_name']);
+            $imageHash = md5($imageData);
+            $ext = $config['image_storage']['allowed_types'][$mime];
+            $imagePath = $config['image_storage']['path'] . '/' . $imageHash . $ext;
+
+            // 保存图片
+            if (!move_uploaded_file($file['tmp_name'], $imagePath)) {
+                throw new Exception('Failed to save image', 500);
+            }
+
+            $data['content'] = $imageHash . $ext;
+        }
+
+        // 保存到数据库
+        if ($storage instanceof SqliteStorage) {
+            try {
+                $stmt = $storage->getDb()->prepare('INSERT INTO main (content, content_type, user_name, quote_source, is_hidden, add_time) 
+                                     VALUES (:content, :content_type, :user_name, :quote_source, :is_hidden, :add_time)');
+                $stmt->execute($data);
+
+                $id = $storage->getDb()->lastInsertId();
+                $data['id'] = $id;
+
+                // 返回完整的URL路径
+                if ($data['content_type'] === 'image') {
+                    $data['content_url'] = $current_domain . '/data/image/' . $data['content'];
+                }
+
+                apiResponse($data, '数据提交成功', 201);
+            } catch (PDOException $e) {
+                throw new Exception('Database error: ' . $e->getMessage(), 500);
+            }
+        }
+    }
 
     // 获取所有引用内容
     $quotes = $storage->getQuotes();
-
-    // 过滤掉隐藏内容
     $visible_quotes = array_filter($quotes, function ($quote) {
         return empty($quote['is_hidden']);
     });
 
-    // 获取最后更新时间
     $lastUpdate = $storage->getLastUpdateTime();
 
     if ($show_all) {
@@ -185,36 +144,34 @@ try {
         }
 
         if ($show_docs) {
-            // HTML响应格式显示所有内容
-            header('Content-Type: text/html; charset=utf-8');
-
+            // HTML响应
             $content_html = '';
             foreach ($quotes_data as $item) {
                 $display_content = $item['content_type'] === 'image'
                     ? "<img src='{$item['content']}' alt='Quote image' style='max-width: 100%;'>"
                     : "<p>" . nl2br(htmlspecialchars($item['content'])) . "</p>";
 
-                $content_html .= renderTemplate('quote_item.html', [
+                $content_html .= renderTemplate('quote_item.php', [
                     'display_content' => $display_content,
                     'user_qq' => htmlspecialchars($item['user_name']),
                     'add_time' => date('Y-m-d H:i:s', $item['add_time'])
                 ]);
             }
 
-            $content = renderTemplate('all_quotes.html', [
+            $content = renderTemplate('all_quotes.php', [
                 'content_html' => $content_html,
                 'current_page' => $page,
                 'total_pages' => $total_pages,
                 'per_page' => $per_page
             ]);
 
-            echo renderTemplate('base.html', [
+            echo renderTemplate('base.php', [
                 'title' => 'All Quotes',
                 'content' => $content,
                 'last_update_time' => date('Y-m-d H:i:s', (int)$lastUpdate)
             ]);
         } else {
-            // JSON响应格式返回所有数据
+            // JSON响应
             $pagination = [
                 'total' => $total,
                 'per_page' => $per_page,
@@ -254,40 +211,38 @@ try {
         ];
 
         if ($show_docs) {
-            // HTML响应格式
-            header('Content-Type: text/html; charset=utf-8');
-
+            // HTML响应
             $display_content = $quote['content_type'] === 'image'
                 ? "<img src='{$quote['content']}' alt='Quote image' style='max-width: 100%;'>"
                 : "<p>" . nl2br(htmlspecialchars($quote['content'])) . "</p>";
 
             $api_example = json_encode($response_data, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
 
-            $content = renderTemplate('single_quote.html', [
+            $content = renderTemplate('single_quote.php', [
                 'display_content' => $display_content,
                 'user_qq' => htmlspecialchars($quote['user_name']),
                 'add_time' => date('Y-m-d H:i:s', (int)$quote['add_time']),
                 'api_example' => $api_example
             ]);
 
-            echo renderTemplate('base.html', [
+            echo renderTemplate('base.php', [
                 'title' => 'Random Quote',
                 'content' => $content,
                 'last_update_time' => date('Y-m-d H:i:s', (int)$lastUpdate)
             ]);
         } else {
-            // JSON响应格式
+            // JSON响应
             apiResponse($response_data, '成功检索随机引用');
         }
     }
-} catch (Exception $e) {
+} catch (Throwable $e) {
     $code = method_exists($e, 'getCode') ? $e->getCode() : 500;
     $code = $code >= 100 && $code < 600 ? $code : 500;
 
     if ($show_docs || $show_all) {
         header('Content-Type: text/html; charset=utf-8');
         http_response_code($code);
-        echo renderTemplate('base.html', [
+        echo renderTemplate('base.php', [
             'title' => 'Error',
             'content' => "<div class='error'>Error: " . htmlspecialchars($e->getMessage()) . "</div>",
             'last_update_time' => date('Y-m-d H:i:s', time())

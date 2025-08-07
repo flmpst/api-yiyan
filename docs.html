@@ -1,0 +1,310 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>一言 API 文档</title>
+    <link rel="stylesheet" href="/style.css">
+</head>
+
+<body>
+    <h1>一言 API 文档</h1>
+    <p>一言 API 提供了随机名言、文本或图片的获取功能，以及内容提交接口。</p>
+
+    <div>
+        <strong>注意：</strong>除了获取之外不需要认证，其余请在请求头中添加正确的认证信息。
+    </div>
+
+    <h2>认证方式</h2>
+    <p>所有 API 请求需要在请求头中包含以下认证信息：</p>
+    <ul>
+        <li><code>X-Client-ID</code>: 客户端ID</li>
+        <li><code>X-App-ID</code>: 应用ID</li>
+        <li><code>Authorization</code>: Bearer token (格式: <code>Bearer your_token</code>)</li>
+    </ul>
+
+    <h2>API 端点</h2>
+
+    <div>
+        <h3>获取随机内容</h3>
+        <p><span>GET</span> <code>/</code></p>
+        <p>返回一条随机的内容（文本或图片）。</p>
+
+        <h4>请求参数</h4>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>docs</td>
+                <td>boolean</td>
+                <td>设置为true可返回HTML格式的文档页面</td>
+            </tr>
+        </table>
+
+        <h4>响应示例</h4>
+        <pre><code>{
+    "meta": {
+        "version": "1.0.0",
+        "timestamp": 1620000000,
+        "status": "success",
+        "code": 200
+    },
+    "message": "成功检索随机引用",
+    "data": {
+        "id": 123,
+        "content": "这是一条随机名言",
+        "description": "来源描述",
+        "content_type": "text",
+        "add_time": 1620000000,
+        "user_name": "用户名"
+    }
+}</code></pre>
+    </div>
+
+    <div>
+        <h3>获取所有内容</h3>
+        <p><span>GET</span> <code>/?all=true</code></p>
+        <p>返回所有非隐藏内容，支持分页。</p>
+
+        <h4>请求参数</h4>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>类型</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>all</td>
+                <td>boolean</td>
+                <td>必须设置为true</td>
+            </tr>
+            <tr>
+                <td>page</td>
+                <td>integer</td>
+                <td>页码，默认为1</td>
+            </tr>
+            <tr>
+                <td>docs</td>
+                <td>boolean</td>
+                <td>设置为true可返回HTML格式的文档页面</td>
+            </tr>
+        </table>
+
+        <h4>响应示例</h4>
+        <pre><code>{
+    "meta": {
+        "version": "1.0.0",
+        "timestamp": 1620000000,
+        "status": "success",
+        "code": 200
+    },
+    "message": "成功检索",
+    "data": {
+        "quotes": [
+            {
+                "id": 123,
+                "content": "这是一条名言",
+                "description": "来源描述",
+                "content_type": "text",
+                "add_time": 1620000000,
+                "user_name": "用户名"
+            },
+            {
+                "id": 124,
+                "content": "https://example.com/data/image/image123.jpg",
+                "description": "图片描述",
+                "content_type": "image",
+                "add_time": 1620000001,
+                "user_name": "用户名"
+            }
+        ],
+        "pagination": {
+            "total": 50,
+            "per_page": 20,
+            "current_page": 1,
+            "total_pages": 3,
+            "has_more": true
+        },
+        "last_update": 1620000000
+    }
+}</code></pre>
+    </div>
+
+    <div>
+        <h3>提交新内容</h3>
+        <p><span>POST</span> <code>/</code></p>
+        <p>提交新的内容（文本或图片）。</p>
+
+        <h4>请求格式</h4>
+        <p>支持两种提交方式：</p>
+        <ol>
+            <li><strong>JSON格式</strong>：用于提交文本内容</li>
+            <li><strong>表单格式</strong>：用于提交图片内容</li>
+        </ol>
+
+        <h4>JSON 请求参数</h4>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>content</td>
+                <td>string</td>
+                <td>是</td>
+                <td>内容文本</td>
+            </tr>
+            <tr>
+                <td>user_name</td>
+                <td>string</td>
+                <td>是</td>
+                <td>用户名</td>
+            </tr>
+            <tr>
+                <td>content_type</td>
+                <td>string</td>
+                <td>否</td>
+                <td>内容类型，默认为"text"</td>
+            </tr>
+            <tr>
+                <td>quote_source</td>
+                <td>string</td>
+                <td>否</td>
+                <td>来源描述</td>
+            </tr>
+        </table>
+
+        <h4>表单请求参数</h4>
+        <table>
+            <tr>
+                <th>参数</th>
+                <th>类型</th>
+                <th>必填</th>
+                <th>说明</th>
+            </tr>
+            <tr>
+                <td>content</td>
+                <td>string</td>
+                <td>是</td>
+                <td>内容描述</td>
+            </tr>
+            <tr>
+                <td>user_name</td>
+                <td>string</td>
+                <td>是</td>
+                <td>用户名</td>
+            </tr>
+            <tr>
+                <td>content_type</td>
+                <td>string</td>
+                <td>是</td>
+                <td>必须设置为"image"</td>
+            </tr>
+            <tr>
+                <td>image_file</td>
+                <td>file</td>
+                <td>是</td>
+                <td>图片文件</td>
+            </tr>
+            <tr>
+                <td>quote_source</td>
+                <td>string</td>
+                <td>否</td>
+                <td>来源描述</td>
+            </tr>
+        </table>
+
+        <h4>响应示例</h4>
+        <pre><code>{
+    "meta": {
+        "version": "1.0.0",
+        "timestamp": 1620000000,
+        "status": "success",
+        "code": 201
+    },
+    "message": "数据提交成功",
+    "data": {
+        "id": 125,
+        "content": "image123.jpg",
+        "content_type": "image",
+        "user_name": "用户名",
+        "quote_source": "来源描述",
+        "is_hidden": 1,
+        "add_time": 1620000000,
+        "content_url": "https://example.com/data/image/image123.jpg"
+    }
+}</code></pre>
+    </div>
+
+    <h2>内容类型</h2>
+    <table>
+        <tr>
+            <th>类型</th>
+            <th>说明</th>
+        </tr>
+        <tr>
+            <td>text</td>
+            <td>文本内容</td>
+        </tr>
+        <tr>
+            <td>image</td>
+            <td>图片内容</td>
+        </tr>
+    </table>
+
+    <h2>图片上传限制</h2>
+    <ul>
+        <li>最大文件大小：5MB</li>
+        <li>支持的图片格式：JPEG, PNG, GIF, WebP</li>
+    </ul>
+
+    <div>
+        <strong>注意：</strong>通过API提交的内容默认会被标记为隐藏，需要管理员审核后才能公开显示。
+    </div>
+
+    <h2>错误代码</h2>
+    <table>
+        <tr>
+            <th>代码</th>
+            <th>说明</th>
+        </tr>
+        <tr>
+            <td>400</td>
+            <td>请求参数错误</td>
+        </tr>
+        <tr>
+            <td>401</td>
+            <td>未授权或认证失败</td>
+        </tr>
+        <tr>
+            <td>403</td>
+            <td>禁止访问</td>
+        </tr>
+        <tr>
+            <td>404</td>
+            <td>未找到内容</td>
+        </tr>
+        <tr>
+            <td>500</td>
+            <td>服务器内部错误</td>
+        </tr>
+    </table>
+    <link rel="stylesheet"
+        href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/base16/apprentice.min.css"
+        integrity="sha512-Xd2UwlrMhVcb1YJSAGyoiGUFgdRz526CH9BfL44s+6YFsQHvtSiAlBF1j5oJ3bSxCp0AKHNzL1YW5YGgF+kzdA=="
+        crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/highlight.min.js"
+        integrity="sha512-EBLzUL8XLl+va/zAsmXwS7Z2B1F9HUHkZwyS/VKwh3S7T/U0nF4BaU29EP/ZSf6zgiIxYAnKLu6bJ8dqpmX5uw=="
+        crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+    <!-- 2. 自动高亮所有代码块 -->
+    <script>hljs.highlightAll();</script>
+</body>
+
+</html>

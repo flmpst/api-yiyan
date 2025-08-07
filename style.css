@@ -1,0 +1,134 @@
+* {
+    font-family: Consolas, Monaco, 'Andale Mono', 'Ubuntu Mono', monospace;
+}
+
+body {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    color: #333;
+    background-color: #fff;
+    transition: all 0.3s ease;
+}
+
+blockquote {
+    border-bottom: 2px solid;
+    padding-bottom: 10px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 20px 0;
+}
+
+thead {
+    position: sticky;
+    top: 0;
+}
+
+th,
+td {
+    padding: 10px;
+    border: 1px solid #ddd;
+}
+
+th {
+    background-color: #f2f2f2;
+}
+
+.admin-actions {
+    display: flex;
+    gap: 10px;
+    margin: 20px
+}
+
+.admin-actions button {
+    padding: 8px 15px;
+    background-color: #f0f0f0;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    cursor: pointer;
+}
+
+.error {
+    padding: 20px;
+    margin: 20px 0;
+    background-color: #f8d7da;
+    border-left: 3px solid #dc3545;
+    color: #721c24;
+}
+
+@media (prefers-color-scheme: dark) {
+    body {
+        color: #e0e0e0;
+        background-color: #121212;
+    }
+
+    .quote-container {
+        background-color: #1e1e1e;
+    }
+
+    .meta {
+        color: #9e9e9e;
+    }
+
+    table {
+        border-color: #444;
+    }
+
+    th,
+    td {
+        border-color: #444;
+        background-color: #2a2a2a;
+    }
+
+    th {
+        background-color: #333;
+        color: #ffffff;
+    }
+
+    .admin-actions button {
+        background-color: #333;
+        border-color: #555;
+        color: #e0e0e0;
+    }
+
+    .admin-actions button:hover {
+        background-color: #444;
+    }
+
+    .error {
+        background-color: #2c1a1d;
+        border-left-color: #ff6b6b;
+        color: #ff9e9e;
+    }
+
+    a {
+        color: #4a8fe7;
+    }
+
+    a:hover {
+        color: #6ba4ff;
+    }
+
+    pre,
+    code {
+        background-color: #1e1e1e;
+        color: #e0e0e0;
+        border: 1px solid #444;
+    }
+
+    input,
+    textarea,
+    select {
+        background-color: #2a2a2a;
+        border: 1px solid #444;
+        color: #e0e0e0;
+        margin-bottom: 10px;
+    }
+
+    hr {
+        border-color: #444;
+    }
+}

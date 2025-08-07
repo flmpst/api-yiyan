@@ -2,16 +2,36 @@
 // 存储配置
 $config = [
     'storage' => [
-        'type' => 'json',
+        'type' => 'sqlite',
         'config' => [
             // JSON 配置
-            'path' => __DIR__ . '/data/7026c04d-662c-4af5-8a23-2661409e50a2.json',
+            'path' => __DIR__ . '/data/data.db',
         ]
     ],
 
     // 图片存储配置
     'image_storage' => [
-        'path' => __DIR__ . '/data/image'
+        'path' => __DIR__ . '/data/image',
+        'max_size' => 5 * 1024 * 1024, // 5MB
+        'allowed_types' => [
+            'image/jpeg' => '.jpg',
+            'image/png' => '.png',
+            'image/gif' => '.gif',
+            'image/webp' => '.webp'
+        ]
+    ],
+
+    'api' => [
+        'token' => [
+            '调用方ID' => [
+                '调用方应用ID' => '调用方Token'
+            ]
+        ]
+    ],
+
+    'admin' => [
+        'name' => '管理员用户名',
+        'password' => '管理员密码'
     ]
 ];
 
