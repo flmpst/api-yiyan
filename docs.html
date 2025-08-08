@@ -12,12 +12,8 @@
     <h1>一言 API 文档</h1>
     <p>一言 API 提供了随机名言、文本或图片的获取功能，以及内容提交接口。</p>
 
-    <div>
-        <strong>注意：</strong>除了获取之外不需要认证，其余请在请求头中添加正确的认证信息。
-    </div>
-
     <h2>认证方式</h2>
-    <p>所有 API 请求需要在请求头中包含以下认证信息：</p>
+    <p>除了获取之外不需要认证，其余请求需要在请求头中包含以下认证信息：</p>
     <ul>
         <li><code>X-Client-ID</code>: 客户端ID</li>
         <li><code>X-App-ID</code>: 应用ID</li>
@@ -35,7 +31,7 @@
         <table>
             <tr>
                 <th>参数</th>
-                <th>
+                <th>类型</th>
                 <th>说明</th>
             </tr>
             <tr>
@@ -45,8 +41,29 @@
             </tr>
         </table>
 
+        <h4>代码示例</h4>
+
+        <h5>JavaScript (Fetch)</h5>
+        <pre><code class="language-javascript">fetch('https://api-yiyan.dfggmc.top/')
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));</code></pre>
+
+        <h5>PHP</h5>
+        <pre><code class="language-php">$url = 'https://api-yiyan.dfggmc.top/';
+$response = file_get_contents($url);
+$data = json_decode($response, true);
+print_r($data);</code></pre>
+
+        <h5>Python</h5>
+        <pre><code class="language-python">import requests
+
+response = requests.get('https://api-yiyan.dfggmc.top/')
+data = response.json()
+print(data)</code></pre>
+
         <h4>响应示例</h4>
-        <pre><code>{
+        <pre><code class="language-json">{
     "meta": {
         "version": "1.0.0",
         "timestamp": 1620000000,
@@ -94,8 +111,30 @@
             </tr>
         </table>
 
+        <h4>代码示例</h4>
+
+        <h5>JavaScript (Fetch)</h5>
+        <pre><code class="language-javascript">fetch('https://api-yiyan.dfggmc.top/?all=true&page=1')
+  .then(response => response.json())
+  .then(data => console.log(data))
+  .catch(error => console.error('Error:', error));</code></pre>
+
+        <h5>PHP</h5>
+        <pre><code class="language-php">$url = 'https://api-yiyan.dfggmc.top/?all=true&page=1';
+$response = file_get_contents($url);
+$data = json_decode($response, true);
+print_r($data);</code></pre>
+
+        <h5>Python</h5>
+        <pre><code class="language-python">import requests
+
+params = {'all': 'true', 'page': 1}
+response = requests.get('https://api-yiyan.dfggmc.top/', params=params)
+data = response.json()
+print(data)</code></pre>
+
         <h4>响应示例</h4>
-        <pre><code>{
+        <pre><code class="language-json">{
     "meta": {
         "version": "1.0.0",
         "timestamp": 1620000000,
@@ -220,8 +259,142 @@
             </tr>
         </table>
 
+        <h4>代码示例</h4>
+
+        <h5>JavaScript (Fetch) - JSON提交</h5>
+        <pre><code class="language-javascript">const data = {
+    content: "这是一条新名言",
+    user_name: "testuser",
+    quote_source: "名人名言"
+};
+
+fetch('https://api-yiyan.dfggmc.top/', {
+    method: 'POST',
+    headers: {
+        'Content-Type': 'application/json',
+        'X-Client-ID': 'your_client_id',
+        'X-App-ID': 'your_app_id',
+        'Authorization': 'Bearer your_token'
+    },
+    body: JSON.stringify(data)
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(error => console.error('Error:', error));</code></pre>
+
+        <h5>PHP - JSON提交</h5>
+        <pre><code class="language-php">$url = 'https://api-yiyan.dfggmc.top/';
+$data = [
+    'content' => '这是一条新名言',
+    'user_name' => 'testuser',
+    'quote_source' => '名人名言'
+];
+
+$options = [
+    'http' => [
+        'header'  => "Content-type: application/json\r\n" .
+                     "X-Client-ID: your_client_id\r\n" .
+                     "X-App-ID: your_app_id\r\n" .
+                     "Authorization: Bearer your_token\r\n",
+        'method'  => 'POST',
+        'content' => json_encode($data),
+    ],
+];
+
+$context  = stream_context_create($options);
+$result = file_get_contents($url, false, $context);
+print_r(json_decode($result, true));</code></pre>
+
+        <h5>Python - JSON提交</h5>
+        <pre><code class="language-python">import requests
+import json
+
+url = 'https://api-yiyan.dfggmc.top/'
+headers = {
+    'Content-Type': 'application/json',
+    'X-Client-ID': 'your_client_id',
+    'X-App-ID': 'your_app_id',
+    'Authorization': 'Bearer your_token'
+}
+data = {
+    'content': '这是一条新名言',
+    'user_name': 'testuser',
+    'quote_source': '名人名言'
+}
+
+response = requests.post(url, headers=headers, data=json.dumps(data))
+print(response.json())</code></pre>
+
+        <h5>JavaScript (Fetch) - 图片上传</h5>
+        <pre><code class="language-javascript">const formData = new FormData();
+formData.append('content', '这是一张图片描述');
+formData.append('user_name', 'testuser');
+formData.append('content_type', 'image');
+formData.append('image_file', fileInput.files[0]);
+
+fetch('https://api-yiyan.dfggmc.top/', {
+    method: 'POST',
+    headers: {
+        'X-Client-ID': 'your_client_id',
+        'X-App-ID': 'your_app_id',
+        'Authorization': 'Bearer your_token'
+    },
+    body: formData
+})
+.then(response => response.json())
+.then(data => console.log(data))
+.catch(error => console.error('Error:', error));</code></pre>
+
+        <h5>PHP - 图片上传</h5>
+        <pre><code class="language-php">$url = 'https://api-yiyan.dfggmc.top/';
+$data = [
+    'content' => '这是一张图片描述',
+    'user_name' => 'testuser',
+    'content_type' => 'image',
+    'image_file' => new CURLFile('/path/to/image.jpg')
+];
+
+$headers = [
+    'X-Client-ID: your_client_id',
+    'X-App-ID: your_app_id',
+    'Authorization: Bearer your_token'
+];
+
+$ch = curl_init();
+curl_setopt($ch, CURLOPT_URL, $url);
+curl_setopt($ch, CURLOPT_POST, 1);
+curl_setopt($ch, CURLOPT_POSTFIELDS, $data);
+curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+
+$response = curl_exec($ch);
+curl_close($ch);
+
+print_r(json_decode($response, true));</code></pre>
+
+        <h5>Python - 图片上传</h5>
+        <pre><code class="language-python">import requests
+
+url = 'https://api-yiyan.dfggmc.top/'
+headers = {
+    'X-Client-ID': 'your_client_id',
+    'X-App-ID': 'your_app_id',
+    'Authorization': 'Bearer your_token'
+}
+files = {
+    'image_file': open('image.jpg', 'rb')
+}
+data = {
+    'content': '这是一张图片描述',
+    'user_name': 'testuser',
+    'content_type': 'image'
+}
+
+response = requests.post(url, headers=headers, files=files, data=data)
+print(response.json())</code></pre>
+
         <h4>响应示例</h4>
-        <pre><code>{
+        <pre><code class="language-json">{
     "meta": {
         "version": "1.0.0",
         "timestamp": 1620000000,
@@ -295,6 +468,9 @@
             <td>服务器内部错误</td>
         </tr>
     </table>
+    <footer>
+        &copy; 花枫工作室 2025 | [Apache License]开源地址：<a href="https://github.com/flmpst/api-yiyan">https://github.com/flmpst/api-yiyan/</a>
+    </footer>
     <link rel="stylesheet"
         href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.11.1/styles/base16/apprentice.min.css"
         integrity="sha512-Xd2UwlrMhVcb1YJSAGyoiGUFgdRz526CH9BfL44s+6YFsQHvtSiAlBF1j5oJ3bSxCp0AKHNzL1YW5YGgF+kzdA=="
