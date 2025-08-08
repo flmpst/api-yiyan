@@ -1,7 +1,7 @@
 <?php
-require_once __DIR__ . '/init.php';
-
+// 主应用程序逻辑
 try {
+    require_once __DIR__ . '/init.php';
     $storage = createStorageStrategy($config);
 
     // 处理API数据提交
@@ -30,11 +30,11 @@ try {
 
         // 准备数据 - API提交的内容默认隐藏
         $data = [
-            'content' => $input['content'],
-            'content_type' => $input['content_type'] ?? 'text',
-            'user_name' => $input['user_name'],
-            'quote_source' => $input['quote_source'] ?? 'API提交',
-            'is_hidden' => 1, // API提交的内容默认隐藏
+            'content' => $input['content_type'] === 'text' ? purifyText($input['content']) : $input['content'],
+            'content_type' => in_array($input['content_type'] ?? 'text', ['text', 'image']) ? $input['content_type'] : 'text',
+            'user_name' => purifyText($input['user_name']),
+            'quote_source' => isset($input['quote_source']) ? purifyText($input['quote_source']) : 'API提交',
+            'is_hidden' => 1,
             'add_time' => time()
         ];
 
@@ -236,18 +236,22 @@ try {
         }
     }
 } catch (Throwable $e) {
+    ob_clean();
     $code = method_exists($e, 'getCode') ? $e->getCode() : 500;
     $code = $code >= 100 && $code < 600 ? $code : 500;
 
-    if ($show_docs || $show_all) {
-        header('Content-Type: text/html; charset=utf-8');
-        http_response_code($code);
-        echo renderTemplate('base.php', [
-            'title' => 'Error',
-            'content' => "<div class='error'>Error: " . htmlspecialchars($e->getMessage()) . "</div>",
-            'last_update_time' => date('Y-m-d H:i:s', time())
-        ]);
+    $details = [];
+    if (isset($config['debug']) && $config['debug'] === true) {
+        $details = [
+            'message' => $e->getMessage(),
+            'code' => $code,
+            'file' => $e->getFile(),
+            'line' => $e->getLine(),
+            'trace' => $e->getTrace(),
+        ];
     } else {
-        apiResponse(null, $e->getMessage(), $code, ['details' => $e->getMessage()]);
+        $details = ['message' => $e->getMessage()];
     }
+
+    apiResponse(null, $e->getMessage(), $code, ['details' => $details]);
 }

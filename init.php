@@ -5,111 +5,14 @@ define('API_VERSION', '1.0.0');
 
 // 加载配置
 $config = require __DIR__ . '/config.php';
+require_once __DIR__ . '/class/SqliteStorage.php';
+require_once __DIR__ . '/class/WebSecurity.php';
+require_once __DIR__ . '/function.php';
+
+initWebSecurity();
 
 // 设置时区
 date_default_timezone_set('Asia/Shanghai');
-
-// 创建存储策略
-function createStorageStrategy($config)
-{
-    if ($config['storage']['type'] === 'sqlite') {
-        require_once __DIR__ . '/class/SqliteStorage.php';
-        return new SqliteStorage($config['storage']['config']);
-    }
-    throw new Exception('Unsupported storage type');
-}
-
-function apiResponse($data = null, $message = '', $code = 200, $errors = [])
-{
-    $status = $code >= 200 && $code < 300 ? 'success' : 'error';
-
-    $response = [
-        'meta' => [
-            'version' => API_VERSION,
-            'timestamp' => time(),
-            'status' => $status,
-            'code' => $code
-        ],
-        'message' => $message,
-        'data' => $data,
-    ];
-
-    if (!empty($errors)) {
-        $response['errors'] = $errors;
-    }
-
-    header('Content-Type: application/json; charset=utf-8');
-    http_response_code($code);
-    echo json_encode($response, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT);
-    exit;
-}
-
-// API认证函数
-function validateApiCredentials()
-{
-    global $config;
-
-    // 检查配置是否存在
-    if (!isset($config['api']['token']) || empty($config['api']['token'])) {
-        throw new Exception('API token configuration is missing', 500);
-    }
-
-    // 检查必要的参数
-    // 方式1: 从请求头获取
-    $clientId = $_SERVER['HTTP_X_CLIENT_ID'] ?? null;
-    $appId = $_SERVER['HTTP_X_APP_ID'] ?? null;
-
-    // 检查Authorization头是否存在
-    if (!isset($_SERVER['HTTP_AUTHORIZATION'])) {
-        throw new Exception('Missing authorization token', 401);
-    }
-
-    $authHeader = $_SERVER['HTTP_AUTHORIZATION'];
-
-    // 验证Bearer令牌格式
-    if (!preg_match('/^Bearer\s+([a-zA-Z0-9\-]+)$/', $authHeader, $matches)) {
-        throw new Exception('Invalid authorization format', 401);
-    }
-
-    $token = trim($matches[1]);
-
-    // 验证必要参数是否存在
-    if (empty($clientId)) {
-        throw new Exception('Missing client ID', 401);
-    }
-
-    if (empty($appId)) {
-        throw new Exception('Missing application ID', 401);
-    }
-
-    if (empty($token)) {
-        throw new Exception('Empty token provided', 401);
-    }
-
-    // 验证客户端ID是否存在于配置中
-    if (!isset($config['api']['token'][$clientId])) {
-        throw new Exception('Invalid client ID', 403);
-    }
-
-    // 验证应用ID是否存在于该客户端下
-    if (!isset($config['api']['token'][$clientId][$appId])) {
-        throw new Exception('Invalid application ID for this client', 403);
-    }
-
-    // 验证令牌是否匹配
-    if ($token !== $config['api']['token'][$clientId][$appId]) {
-        throw new Exception('Invalid token for the provided client and application', 403);
-    }
-}
-
-// 模板渲染函数
-function renderTemplate($template, $data = [])
-{
-    extract($data);
-    ob_start();
-    include __DIR__ . '/templates/' . $template;
-    return ob_get_clean();
-}
 
 // 获取当前域名
 $current_domain = (isset($_SERVER['HTTPS']) && $_SERVER['HTTPS'] === 'on' ? "https" : "http") . "://$_SERVER[HTTP_HOST]";
@@ -122,7 +25,6 @@ $per_page = 20;
 
 // 管理员路由处理
 $request_uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-// 管理员相关路由
 if (strpos($request_uri, '/admin') === 0) {
     // 管理员登录检查
     $is_admin = isset($_SESSION['admin_logged_in']) && $_SESSION['admin_logged_in'] === true;
@@ -136,6 +38,8 @@ if (strpos($request_uri, '/admin') === 0) {
 
             if ($username === $config['admin']['name'] && $password === $config['admin']['password']) {
                 $_SESSION['admin_logged_in'] = true;
+                $_SESSION['admin_username'] = $username;
+                logAdminAction('用户登录');
                 header('Location: /admin');
                 exit;
             } else {
@@ -153,6 +57,7 @@ if (strpos($request_uri, '/admin') === 0) {
 
     // 退出登录
     if ($request_uri === '/admin/logout') {
+        logAdminAction('用户退出');
         session_destroy();
         header('Location: /admin/login');
         exit;
@@ -166,9 +71,26 @@ if (strpos($request_uri, '/admin') === 0) {
 
     // 管理面板首页
     if ($request_uri === '/admin') {
+        $quotes = $storage->getQuotes();
+        $total_quotes = count($quotes);
+        $text_quotes = count(array_filter($quotes, function ($quote) {
+            return $quote['content_type'] === 'text';
+        }));
+        $image_quotes = count(array_filter($quotes, function ($quote) {
+            return $quote['content_type'] === 'image';
+        }));
+        $hidden_quotes = count(array_filter($quotes, function ($quote) {
+            return $quote['is_hidden'];
+        }));
+
         echo renderTemplate('base.php', [
             'title' => '管理面板',
-            'content' => renderTemplate('admin_panel.php'),
+            'content' => renderTemplate('admin_panel.php', [
+                'total_quotes' => $total_quotes,
+                'text_quotes' => $text_quotes,
+                'image_quotes' => $image_quotes,
+                'hidden_quotes' => $hidden_quotes
+            ]),
             'last_update_time' => date('Y-m-d H:i:s', time())
         ]);
         exit;
@@ -187,6 +109,10 @@ if (strpos($request_uri, '/admin') === 0) {
     // 保存内容
     if ($request_uri === '/admin/save') {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+                die('CSRF token validation failed');
+            }
+
             $data = [
                 'content' => $_POST['content'],
                 'content_type' => $_POST['content_type'] ?? 'text',
@@ -200,6 +126,8 @@ if (strpos($request_uri, '/admin') === 0) {
                 $stmt = $storage->getDb()->prepare('INSERT INTO main (content, content_type, user_name, quote_source, is_hidden, add_time) 
                                      VALUES (:content, :content_type, :user_name, :quote_source, :is_hidden, :add_time)');
                 $stmt->execute($data);
+                $id = $storage->getDb()->lastInsertId();
+                logAdminAction('添加内容', 'ID: ' . $id);
             }
 
             header('Location: /admin/list');
@@ -209,14 +137,87 @@ if (strpos($request_uri, '/admin') === 0) {
 
     // 内容列表
     if ($request_uri === '/admin/list') {
+        $search = $_GET['search'] ?? '';
+        $content_type = $_GET['content_type'] ?? '';
+        $visibility = $_GET['visibility'] ?? '';
+
         $quotes = $storage->getQuotes();
+
+        // 应用筛选
+        if (!empty($search)) {
+            $quotes = array_filter($quotes, function ($quote) use ($search) {
+                return stripos($quote['content'], $search) !== false ||
+                    stripos($quote['user_name'], $search) !== false;
+            });
+        }
+
+        if (!empty($content_type)) {
+            $quotes = array_filter($quotes, function ($quote) use ($content_type) {
+                return $quote['content_type'] === $content_type;
+            });
+        }
+
+        if (!empty($visibility)) {
+            $quotes = array_filter($quotes, function ($quote) use ($visibility) {
+                return ($visibility === 'visible' && !$quote['is_hidden']) ||
+                    ($visibility === 'hidden' && $quote['is_hidden']);
+            });
+        }
+
+        // 分页
+        $total = count($quotes);
+        $total_pages = ceil($total / $per_page);
+        $offset = ($page - 1) * $per_page;
+        $paged_quotes = array_slice($quotes, $offset, $per_page);
 
         echo renderTemplate('base.php', [
             'title' => '内容列表',
-            'content' => renderTemplate('admin_list.php', ['quotes' => $quotes, 'current_domain' => $current_domain]),
+            'content' => renderTemplate('admin_list.php', [
+                'quotes' => $paged_quotes,
+                'current_domain' => $current_domain,
+                'total_pages' => $total_pages,
+                'page' => $page
+            ]),
             'last_update_time' => date('Y-m-d H:i:s', time())
         ]);
         exit;
+    }
+
+    // 批量操作
+    if ($request_uri === '/admin/batch_action') {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+                die('CSRF token validation failed');
+            }
+
+            $ids = $_POST['ids'] ?? [];
+            $action = $_POST['batch_action'] ?? '';
+
+            if (!empty($ids) && $action) {
+                $placeholders = implode(',', array_fill(0, count($ids), '?'));
+
+                switch ($action) {
+                    case 'show':
+                        $stmt = $storage->getDb()->prepare("UPDATE main SET is_hidden = 0 WHERE id IN ($placeholders)");
+                        $stmt->execute($ids);
+                        logAdminAction('批量显示内容', 'ID: ' . implode(',', $ids));
+                        break;
+                    case 'hide':
+                        $stmt = $storage->getDb()->prepare("UPDATE main SET is_hidden = 1 WHERE id IN ($placeholders)");
+                        $stmt->execute($ids);
+                        logAdminAction('批量隐藏内容', 'ID: ' . implode(',', $ids));
+                        break;
+                    case 'delete':
+                        $stmt = $storage->getDb()->prepare("DELETE FROM main WHERE id IN ($placeholders)");
+                        $stmt->execute($ids);
+                        logAdminAction('批量删除内容', 'ID: ' . implode(',', $ids));
+                        break;
+                }
+            }
+
+            header('Location: /admin/list');
+            exit;
+        }
     }
 
     // 删除内容
@@ -225,6 +226,7 @@ if (strpos($request_uri, '/admin') === 0) {
         if ($storage instanceof SqliteStorage) {
             $stmt = $storage->getDb()->prepare('DELETE FROM main WHERE id = ?');
             $stmt->execute([$id]);
+            logAdminAction('删除内容', 'ID: ' . $id);
         }
         header('Location: /admin/list');
         exit;
@@ -251,6 +253,10 @@ if (strpos($request_uri, '/admin') === 0) {
     // 更新内容
     if (preg_match('#^/admin/update/(\d+)$#', $request_uri, $matches)) {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            if (!validateCsrfToken($_POST['csrf_token'] ?? '')) {
+                die('CSRF token validation failed');
+            }
+
             $id = $matches[1];
             $data = [
                 'id' => $id,
@@ -270,10 +276,31 @@ if (strpos($request_uri, '/admin') === 0) {
                 is_hidden = :is_hidden 
                 WHERE id = :id');
                 $stmt->execute($data);
+                logAdminAction('更新内容', 'ID: ' . $id);
             }
 
             header('Location: /admin/list');
             exit;
         }
+    }
+
+    // 日志查看路由
+    if ($request_uri === '/admin/logs') {
+        echo renderTemplate('base.php', [
+            'title' => '管理员日志',
+            'content' => renderTemplate('admin_log.php', [
+                'config' => $config,
+            ]),
+            'last_update_time' => date('Y-m-d H:i:s', time())
+        ]);
+        exit;
+    }
+
+    // 日志下载路由
+    if ($request_uri === '/admin/logs/download') {
+        header('Content-Type: application/octet-stream');
+        header('Content-Disposition: attachment; filename="admin_actions_' . date('Ymd_His') . '.log"');
+        readfile($config['admin']['log_file']);
+        exit;
     }
 }

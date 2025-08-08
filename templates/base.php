@@ -7,7 +7,7 @@
     <title>
         <?= htmlspecialchars($title ?? '一言') ?>
     </title>
-    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/style.css?v=0.2.0">
 </head>
 
 <body>
@@ -29,7 +29,7 @@
     <hr>
     <footer>
         <p>数据最后更新时间：<?= $last_update_time ?></p>
-        &copy; 花枫工作室 2025
+        &copy; 花枫工作室 2025 | 开源地址：<a href="https://github.com/flmpst/api-yiyan">https://github.com/flmpst/api-yiyan/</a>
     </footer>
 </body>
 

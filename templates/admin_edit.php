@@ -1,9 +1,15 @@
 <h1>编辑内容</h1>
 <hr>
 <form method="post" action="/admin/update/<?= $quote['id'] ?>" class="form-container">
+    <input type="hidden" name="csrf_token" value="<?= generateCsrfToken() ?>">
     <div>
         <label for="content">内容:</label>
         <textarea id="content" name="content" rows="5" required><?= htmlspecialchars($quote['content']) ?></textarea>
+        <?php if ($quote['content_type'] === 'image'): ?>
+            <div class="image-preview">
+                <img src="<?= $current_domain . '/data/image/' . $quote['content'] ?>" alt="当前图片" style="max-width: 300px; margin-top: 10px;">
+            </div>
+        <?php endif; ?>
     </div>
     <div>
         <label for="content_type">内容类型:</label>

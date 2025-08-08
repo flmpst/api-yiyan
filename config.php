@@ -1,6 +1,7 @@
 <?php
 // 存储配置
 $config = [
+    'debug' => true,
     'storage' => [
         'type' => 'sqlite',
         'config' => [
@@ -31,7 +32,8 @@ $config = [
 
     'admin' => [
         'name' => '管理员用户名',
-        'password' => '管理员密码'
+        'password' => '管理员密码',
+        'log_file' => __DIR__ . '/data/log/admin_actions.log'
     ]
 ];
 
