@@ -21,16 +21,13 @@
         // 监听页面加载事件
         window.addEventListener('load', () => {
             NProgress.done();
-            mdui.mutation();
         });
         // 监听资源加载事件
         document.addEventListener('readystatechange', () => {
             if (document.readyState === 'interactive') {
                 NProgress.start();
-                mdui.mutation();
             } else if (document.readyState === 'complete') {
                 NProgress.done();
-                mdui.mutation();
             }
         });
     </script>
@@ -75,7 +72,6 @@
         // Pjax 请求结束时隐藏进度条并重新绑定表单事件
         $(document).on('pjax:end', function() {
             NProgress.done();
-            mdui.mutation();
         });
     </script>
 </body>
