@@ -3,8 +3,51 @@ session_start();
 
 define('API_VERSION', '1.0.0');
 
-// 加载配置
 $config = require __DIR__ . '/config.php';
+
+$dataDir = __DIR__ . '/data';
+if (!is_dir($dataDir)) {
+    mkdir($dataDir, 0755, true);
+}
+
+$dbPath = $dataDir . '/data.db';
+if (!file_exists($dbPath)) {
+    $pdo = new PDO('sqlite:' . $dbPath);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS \"main\" (
+            \"id\" INTEGER NOT NULL UNIQUE,
+            \"content\" TEXT NOT NULL,
+            \"content_type\" TEXT NOT NULL DEFAULT 'text',
+            \"user_name\" TEXT NOT NULL,
+            \"add_time\" TEXT NOT NULL,
+            \"quote_source\" TEXT,
+            \"is_hidden\" BLOB DEFAULT 'false',
+            PRIMARY KEY(\"id\" AUTOINCREMENT)
+        )
+    ");
+    
+    $pdo->exec("
+        CREATE TABLE IF NOT EXISTS sqlean_define(
+            name text primary key, 
+            type text, 
+            body text
+        )
+    ");
+    
+    $pdo = null;
+}
+
+$logFile = $dataDir . '/log/admin_actions.log';
+$logDir = dirname($logFile);
+if (!is_dir($logDir)) {
+    mkdir($logDir, 0755, true);
+}
+if (!file_exists($logFile)) {
+    touch($logFile);
+}
+
 require_once __DIR__ . '/class/SqliteStorage.php';
 require_once __DIR__ . '/class/WebSecurity.php';
 require_once __DIR__ . '/function.php';
