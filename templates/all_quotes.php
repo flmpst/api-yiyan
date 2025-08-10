@@ -1,5 +1,7 @@
 <h1>所有一言</h1>
 <hr>
-<button onclick="window.location.href='/?docs=true'">返回随机一言</button>
-
+<div class="admin-actions">
+    <a href='/?docs=true'>返回随机一言</a>
+</div>
+<hr>
 <?= $content_html ?>
