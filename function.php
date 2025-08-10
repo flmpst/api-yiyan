@@ -160,11 +160,15 @@ function logAdminAction($action, $details = '')
     global $config;
 
     $logEntry = sprintf(
-        "[%s] %s: %s\n",
+        "[%s] IP:%s | User:%s | Action:%s | Details:%s | UserAgent:%s\n",
         date('Y-m-d H:i:s'),
-        getIp() ?? 'unknown',
-        $action . ($details ? ' - ' . $details : '')
+        getIp(),
+        $_SESSION['admin_username'] ?? 'unknown',
+        $action,
+        $details,
+        $_SERVER['HTTP_USER_AGENT'] ?? 'unknown'
     );
 
-    file_put_contents($config['admin']['log_file'], $logEntry, FILE_APPEND);
+    // 使用LOCK_EX防止并发写入问题
+    file_put_contents($config['admin']['log_file'], $logEntry, FILE_APPEND | LOCK_EX);
 }

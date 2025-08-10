@@ -240,18 +240,82 @@ try {
     $code = method_exists($e, 'getCode') ? $e->getCode() : 500;
     $code = $code >= 100 && $code < 600 ? $code : 500;
 
-    $details = [];
-    if (isset($config['debug']) && $config['debug'] === true) {
-        $details = [
+    // 获取所有可能的上下文信息（始终收集，用于日志）
+    $requestBody = file_get_contents('php://input');
+    $requestHeaders = function_exists('getallheaders') ? getallheaders() : [];
+
+    // 过滤敏感信息
+    $filteredPost = $_POST;
+    if (isset($filteredPost['password'])) $filteredPost['password'] = '***FILTERED***';
+    if (isset($filteredPost['token'])) $filteredPost['token'] = '***FILTERED***';
+
+    $filteredServer = $_SERVER;
+    $sensitiveKeys = ['HTTP_AUTHORIZATION', 'PHP_AUTH_PW', 'REDIS_PASSWORD', 'DB_PASSWORD'];
+    foreach ($sensitiveKeys as $key) {
+        if (isset($filteredServer[$key])) $filteredServer[$key] = '***FILTERED***';
+    }
+
+    //（无论是否调试模式，日志都会记录）
+    $fullErrorDetails = [
+        'error' => [
+            'class' => get_class($e),
             'message' => $e->getMessage(),
             'code' => $code,
             'file' => $e->getFile(),
             'line' => $e->getLine(),
             'trace' => $e->getTrace(),
-        ];
-    } else {
-        $details = ['message' => $e->getMessage()];
+            'previous' => $e->getPrevious() ? $e->getPrevious()->getMessage() : null,
+        ],
+        'request' => [
+            'method' => $_SERVER['REQUEST_METHOD'] ?? 'CLI',
+            'uri' => $_SERVER['REQUEST_URI'] ?? '',
+            'query' => $_GET,
+            'post' => $filteredPost,
+            'raw_input' => $requestBody,
+            'headers' => $requestHeaders,
+        ],
+        'environment' => [
+            'php_version' => PHP_VERSION,
+            'os' => PHP_OS,
+            'memory_usage' => memory_get_usage(true) / 1024 / 1024 . ' MB',
+            'peak_memory' => memory_get_peak_usage(true) / 1024 / 1024 . ' MB',
+            'include_path' => get_include_path(),
+        ],
+        'session' => $_SESSION ?? [],
+        'cookies' => $_COOKIE ?? [],
+        'server' => $filteredServer,
+        'timestamp' => date('Y-m-d H:i:s'),
+    ];
+
+    // 决定返回给用户的信息（调试模式返回全部，否则仅返回message）
+    $apiResponseDetails = (isset($config['debug']) && $config['debug'] === true)
+        ? $fullErrorDetails
+        : ['message' => $e->getMessage()];
+
+    // （始终记录完整信息，无论是否是调试模式）
+    $logDir = __DIR__ . '/data/log/';
+    if (!is_dir($logDir)) {
+        mkdir($logDir, 0777, true);
     }
 
-    apiResponse(null, $e->getMessage(), $code, ['details' => $details]);
+    $logFile = $logDir . 'error_' . date('Y-m-d') . '.log';
+    $logData = [
+        'timestamp' => date('Y-m-d H:i:s'),
+        'error' => [
+            'type' => get_class($e),
+            'message' => $e->getMessage(),
+            'location' => $e->getFile() . ':' . $e->getLine(),
+        ],
+        'context' => $fullErrorDetails, // 始终记录完整上下文
+    ];
+
+    // 写
+    file_put_contents(
+        $logFile,
+        json_encode($logData, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) . "\n\n",
+        FILE_APPEND
+    );
+
+    // （调试模式返回详细信息，否则仅返回message）
+    apiResponse(null, $e->getMessage(), $code, ['details' => $apiResponseDetails]);
 }
