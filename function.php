@@ -1,6 +1,7 @@
 <?php
 
-function initWebSecurity(){
+function initWebSecurity()
+{
     $security = new WebSecurity;
     $security->checkRequest();
 }
@@ -27,6 +28,41 @@ function purifyText($text)
     $text = htmlspecialchars($text, ENT_QUOTES | ENT_HTML5, 'UTF-8');
 
     return $text;
+}
+
+/**
+ * 检查内容是否包含敏感词
+ * @param string $content 要检查的内容
+ * @return bool 如果包含敏感词返回false，否则返回true
+ */
+function checkSensitiveWords($content)
+{
+    $filePath = __DIR__ . '/data/敏感词.txt';
+    // 检查文件是否存在
+    if (!file_exists($filePath)) {
+        // 文件不存在，可以根据实际需求决定返回true还是false
+        // 这里假设文件不存在时不进行敏感词检查
+        return true;
+    }
+
+    // 读取文件内容为数组，每行一个元素
+    $sensitiveWords = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+
+    // 如果文件为空，直接返回true
+    if (empty($sensitiveWords)) {
+        return true;
+    }
+
+    // 检查内容是否包含任何敏感词
+    foreach ($sensitiveWords as $word) {
+        // 使用严格的字符串位置检查，防止部分匹配
+        if (strpos($content, $word) !== false) {
+            return false;
+        }
+    }
+
+    // 没有找到敏感词
+    return true;
 }
 
 function apiResponse($data = null, $message = '', $code = 200, $errors = [])

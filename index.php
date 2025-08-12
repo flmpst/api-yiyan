@@ -28,6 +28,24 @@ try {
             }
         }
 
+        // 添加敏感词检查 - 只检查文本内容
+        if ($input['content_type'] === 'text') {
+            // 检查内容
+            if (!checkSensitiveWords($input['content'])) {
+                throw new Exception("内容包含敏感词，请修改后重新提交", 400);
+            }
+
+            // 检查用户名
+            if (!checkSensitiveWords($input['user_name'])) {
+                throw new Exception("用户名包含敏感词，请修改后重新提交", 400);
+            }
+
+            // 如果有引用来源，也检查
+            if (isset($input['quote_source']) && !checkSensitiveWords($input['quote_source'])) {
+                throw new Exception("引用来源包含敏感词，请修改后重新提交", 400);
+            }
+        }
+
         // 准备数据 - API提交的内容默认隐藏
         $data = [
             'content' => $input['content_type'] === 'text' ? purifyText($input['content']) : $input['content'],

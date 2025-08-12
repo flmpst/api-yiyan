@@ -14,7 +14,7 @@ $dbPath = $dataDir . '/data.db';
 if (!file_exists($dbPath)) {
     $pdo = new PDO('sqlite:' . $dbPath);
     $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-    
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS \"main\" (
             \"id\" INTEGER NOT NULL UNIQUE,
@@ -27,7 +27,7 @@ if (!file_exists($dbPath)) {
             PRIMARY KEY(\"id\" AUTOINCREMENT)
         )
     ");
-    
+
     $pdo->exec("
         CREATE TABLE IF NOT EXISTS sqlean_define(
             name text primary key, 
@@ -35,7 +35,7 @@ if (!file_exists($dbPath)) {
             body text
         )
     ");
-    
+
     $pdo = null;
 }
 
